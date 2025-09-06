@@ -1,0 +1,127 @@
+name: RDP with Audio Support
+on:
+  workflow_dispatch:
+jobs:
+  secure-rdp:
+    runs-on: windows-latest
+    timeout-minutes: 3600
+    steps:
+      # 1. Configurar RDP y Firewall
+      - name: Configure RDP & Audio Settings
+        run: |
+          # Habilitar RDP y deshabilitar autenticación de nivel de red
+          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' `
+                           -Name "fDenyTSConnections" -Value 0 -Force
+          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' `
+                           -Name "UserAuthentication" -Value 0 -Force
+          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' `
+                           -Name "SecurityLayer" -Value 0 -Force
+          
+          # Habilitar redirección de audio
+          Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\Terminal Services' `
+                           -Name "fEnableAudioRedirection" -Value 1 -Force
+          Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\Terminal Services' `
+                           -Name "fDisableAudioPlayback" -Value 0 -Force
+          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' `
+                           -Name "AudioMapping" -Value 1 -Force
+          
+          # Abrir puerto 3389 en firewall
+          netsh advfirewall firewall add rule name="RDP" dir=in action=allow protocol=TCP localport=3389
+          Restart-Service -Name TermService -Force
+        
+      # 2. Crear Usuario RDP
+      - name: Create RDP User
+        run: |
+          Add-Type -AssemblyName System.Security
+          $charSet = @{
+              Upper   = [char[]](65..90)
+              Lower   = [char[]](97..122)
+              Number  = [char[]](48..57)
+              Special = [char[]](33..47 + 58..64 + 91..96 + 123..126)
+          }
+          $rawPassword = @(
+              $charSet.Upper | Get-Random -Count 4
+              $charSet.Lower | Get-Random -Count 4
+              $charSet.Number | Get-Random -Count 4
+              $charSet.Special | Get-Random -Count 4
+          )
+          $password = -join ($rawPassword | Sort-Object {Get-Random})
+          $securePass = ConvertTo-SecureString $password -AsPlainText -Force
+          New-LocalUser -Name "RDP" -Password $securePass -AccountNeverExpires
+          Add-LocalGroupMember -Group "Administrators" -Member "RDP"
+          Add-LocalGroupMember -Group "Remote Desktop Users" -Member "RDP"
+          echo "RDP_CREDS=User: RDP | Password: $password" >> $env:GITHUB_ENV
+        
+      # 3. Instalar y Configurar Tailscale
+      - name: Install & Connect Tailscale
+        run: |
+          $tsUrl = "https://pkgs.tailscale.com/stable/tailscale-setup-1.82.0-amd64.msi"
+          $installerPath = "$env:TEMP\tailscale.msi"
+          Invoke-WebRequest -Uri $tsUrl -OutFile $installerPath
+          Start-Process msiexec.exe -ArgumentList "/i", "`"$installerPath`"", "/quiet", "/norestart" -Wait
+          Remove-Item $installerPath -Force
+          & "$env:ProgramFiles\Tailscale\tailscale.exe" up --authkey=${{ secrets.TAILSCALE_AUTH_KEY }} --hostname=gh-runner-$env:GITHUB_RUN_ID
+          $tsIP = $null; $retries = 0
+          while (-not $tsIP -and $retries -lt 10) {
+              $tsIP = & "$env:ProgramFiles\Tailscale\tailscale.exe" ip -4
+              Start-Sleep -Seconds 5; $retries++
+          }
+          if (-not $tsIP) {exit 1}
+          echo "TAILSCALE_IP=$tsIP" >> $env:GITHUB_ENV
+        
+      # 4. Generar Archivo RDP Preconfigurado
+      - name: Generate RDP File with Audio
+        run: |
+          $rdpContent = @"
+screen mode id:i:2
+use multimon:i:0
+desktopwidth:i:1920
+desktopheight:i:1080
+session bpp:i:32
+winposstr:s:2,3,0,0,800,600
+compression:i:1
+keyboardhook:i:2
+audiomode:i:2  # 🔴 CLAVE: Reproducir sonido en el cliente
+redirectdrives:i:0
+redirectprinters:i:1
+redirectcomports:i:0
+redirectsmartcards:i:1
+displayconnectionbar:i:1
+autoreconnectenabled:i:1
+authentication level:i:0
+prompt for credentials:i:0
+negotiate security layer:i:1
+remoteapplicationmode:i:0
+alternate shell:s:
+shell working directory:s:
+gatewayhostname:s:
+gatewayusagemethod:i:4
+gatewaycredentialssource:i:1
+gatewayprofileusagemethod:i:0
+promptcredentialonce:i:1
+"@
+          $rdpFilePath = "$env:TEMP\rdp-connect.rdp"
+          $rdpContent | Out-File -Encoding ASCII $rdpFilePath
+          echo "RDP_FILE_PATH=$rdpFilePath" >> $env:GITHUB_ENV
+        
+      # 5. Verificar Acceso y Mostrar Credenciales
+      - name: Display Access Info
+        run: |
+          Write-Host "`n=== ACCESO RDP ==="
+          Write-Host "🔹 Dirección: $env:TAILSCALE_IP"
+          Write-Host "🔹 Usuario: RDP"
+          Write-Host "🔹 Contraseña: $(echo $env:RDP_CREDS)"
+          Write-Host "🔹 Archivo RDP: $env:RDP_FILE_PATH"
+          Write-Host "`n[⚠️ IMPORTANTE] Para escuchar audio:"
+          Write-Host "  1. Abre el archivo RDP generado."
+          Write-Host "  2. Antes de conectar, ve a 'Opciones' > 'Recursos locales'."
+          Write-Host "  3. En 'Audio', selecciona: 'Reproducir sonido en este equipo'."
+          Write-Host "  4. Conecta y prueba reproduciendo un video/audio.`n"
+        
+      # 6. Mantener Sesión Activa
+      - name: Keep Session Alive
+        run: |
+          while ($true) {
+              Write-Host "[$(Get-Date)] SESIÓN ACTIVA - Presiona Ctrl+C para detener"
+              Start-Sleep -Seconds 300
+          }

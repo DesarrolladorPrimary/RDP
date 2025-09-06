@@ -1,129 +1,177 @@
-name: RDP with Audio Support
+name: RDP
+
 on:
   workflow_dispatch:
+
 jobs:
   secure-rdp:
     runs-on: windows-latest
     timeout-minutes: 3600
+
     steps:
-      # 1. Configurar RDP y Firewall con Soporte de Audio
-      - name: Configure RDP & Audio Settings
+      - name: Configure Core RDP Settings
         run: |
-          # Habilitar RDP y deshabilitar autenticación de nivel de red
+          # Enable Remote Desktop and disable Network Level Authentication (if needed)
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' `
-                           -Name "fDenyTSConnections" -Value 0 -Force
+                             -Name "fDenyTSConnections" -Value 0 -Force
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' `
-                           -Name "UserAuthentication" -Value 0 -Force
+                             -Name "UserAuthentication" -Value 0 -Force
           Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' `
-                           -Name "SecurityLayer" -Value 0 -Force
+                             -Name "SecurityLayer" -Value 0 -Force
+
+          # Enable audio redirection (sound will play on your client PC)
+          Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\Terminal Server Client' `
+            -Name "AudioRedirectionMode" -Value 0 -Force  # 0 = Play on client computer
           
-          # Habilitar redirección de audio
-          Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\Terminal Services' `
-                           -Name "fEnableAudioRedirection" -Value 1 -Force
-          Set-ItemProperty -Path 'HKLM:\SOFTWARE\Policies\Microsoft\Windows NT\Terminal Services' `
-                           -Name "fDisableAudioPlayback" -Value 0 -Force
-          Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' `
-                           -Name "AudioMapping" -Value 1 -Force
+          # Enable hardware compression for better graphics performance
+          Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' `
+            -Name "EnableHardwareCompression" -Value 1 -Force
           
-          # Abrir puerto 3389 en firewall
-          netsh advfirewall firewall add rule name="RDP" dir=in action=allow protocol=TCP localport=3389
+          # Enable desktop composition for better visual experience
+          Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' `
+            -Name "fEnableDesktopComposition" -Value 1 -Force
+          
+          # Set color depth to 32-bit for better graphics
+          Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' `
+            -Name "ColorDepth" -Value 4 -Force  # 4 = 32-bit color
+
+          # Remove any existing rule with the same name to avoid duplication
+          netsh advfirewall firewall delete rule name="RDP-Tailscale"
+          
+          # For testing, allow any incoming connection on port 3389
+          netsh advfirewall firewall add rule name="RDP-Tailscale" `
+            dir=in action=allow protocol=TCP localport=3389
+
+          # (Optional) Restart the Remote Desktop service to ensure changes take effect
           Restart-Service -Name TermService -Force
-        
-      # 2. Crear Usuario RDP Seguro
-      - name: Create Secure RDP User
+
+      - name: Enable Audio Services
+        run: |
+          # Enable and start Windows Audio service
+          Set-Service -Name Audiosrv -StartupType Automatic
+          Start-Service -Name Audiosrv -ErrorAction SilentlyContinue
+          
+          # Enable and start Windows Audio Endpoint Builder
+          Set-Service -Name AudioEndpointBuilder -StartupType Automatic
+          Start-Service -Name AudioEndpointBuilder -ErrorAction SilentlyContinue
+          
+          # Enable RPC for audio services
+          Set-Service -Name RpcSs -StartupType Automatic
+          Start-Service -Name RpcSs -ErrorAction SilentlyContinue
+          
+          Write-Host "Audio services configured for RDP redirection"
+
+      - name: Optimize Graphics and Performance
+        run: |
+          # Enable WARP (Windows Advanced Rasterization Platform) for software GPU
+          Set-ItemProperty -Path 'HKLM:\SOFTWARE\Microsoft\DirectX' `
+            -Name "DisableWARP" -Value 0 -Force -ErrorAction SilentlyContinue
+          
+          # Enable desktop wallpaper in RDP sessions
+          Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' `
+            -Name "fDisableWallpaper" -Value 0 -Force
+          
+          # Enable menu animations
+          Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' `
+            -Name "fDisableMenuAnims" -Value 0 -Force
+          
+          # Enable themes
+          Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' `
+            -Name "fDisableThemes" -Value 0 -Force
+          
+          Write-Host "Graphics optimizations applied"
+
+      - name: Create RDP User with Secure Password
         run: |
           Add-Type -AssemblyName System.Security
           $charSet = @{
               Upper   = [char[]](65..90)      # A-Z
               Lower   = [char[]](97..122)     # a-z
               Number  = [char[]](48..57)      # 0-9
-              Special = [char[]](33..47+58..64+91..96+123..126) # Caracteres especiales
+              Special = ([char[]](33..47) + [char[]](58..64) +
+                         [char[]](91..96) + [char[]](123..126)) # Special characters
           }
-          $rawPassword = @(
-              $charSet.Upper | Get-Random -Count 4
-              $charSet.Lower | Get-Random -Count 4
-              $charSet.Number | Get-Random -Count 4
-              $charSet.Special | Get-Random -Count 4
-          )
-          $password = -join ($rawPassword | Sort-Object {Get-Random})
+          $rawPassword = @()
+          $rawPassword += $charSet.Upper | Get-Random -Count 4
+          $rawPassword += $charSet.Lower | Get-Random -Count 4
+          $rawPassword += $charSet.Number | Get-Random -Count 4
+          $rawPassword += $charSet.Special | Get-Random -Count 4
+          $password = -join ($rawPassword | Sort-Object { Get-Random })
           $securePass = ConvertTo-SecureString $password -AsPlainText -Force
           New-LocalUser -Name "RDP" -Password $securePass -AccountNeverExpires
           Add-LocalGroupMember -Group "Administrators" -Member "RDP"
           Add-LocalGroupMember -Group "Remote Desktop Users" -Member "RDP"
+          
           echo "RDP_CREDS=User: RDP | Password: $password" >> $env:GITHUB_ENV
-        
-      # 3. Instalar y Configurar Tailscale
-      - name: Install & Connect Tailscale
+          
+          if (-not (Get-LocalUser -Name "RDP")) {
+              Write-Error "User creation failed"
+              exit 1
+          }
+
+      - name: Install Tailscale
         run: |
           $tsUrl = "https://pkgs.tailscale.com/stable/tailscale-setup-1.82.0-amd64.msi"
           $installerPath = "$env:TEMP\tailscale.msi"
+          
           Invoke-WebRequest -Uri $tsUrl -OutFile $installerPath
           Start-Process msiexec.exe -ArgumentList "/i", "`"$installerPath`"", "/quiet", "/norestart" -Wait
           Remove-Item $installerPath -Force
+
+      - name: Establish Tailscale Connection
+        run: |
+          # Bring up Tailscale with the provided auth key and set a unique hostname
           & "$env:ProgramFiles\Tailscale\tailscale.exe" up --authkey=${{ secrets.TAILSCALE_AUTH_KEY }} --hostname=gh-runner-$env:GITHUB_RUN_ID
-          $tsIP = $null; $retries = 0
+          
+          # Wait for Tailscale to assign an IP
+          $tsIP = $null
+          $retries = 0
           while (-not $tsIP -and $retries -lt 10) {
               $tsIP = & "$env:ProgramFiles\Tailscale\tailscale.exe" ip -4
-              Start-Sleep -Seconds 5; $retries++
+              Start-Sleep -Seconds 5
+              $retries++
           }
-          if (-not $tsIP) { exit 1 }
-          echo "TAILSCALE_IP=$tsIP" >> $env:GITHUB_ENV
-        
-      # 4. Generar Archivo RDP Preconfigurado con Audio
-      - name: Generate RDP File with Audio Settings
-        run: |
-          # Usar comillas simples para evitar errores de sintaxis YAML
-          $rdpContent = @'
-screen mode id:i:2
-use multimon:i:0
-desktopwidth:i:1920
-desktopheight:i:1080
-session bpp:i:32
-winposstr:s:2,3,0,0,800,600
-compression:i:1
-keyboardhook:i:2
-audiomode:i:2  # 🔴 CLAVE: Reproducir sonido en el cliente
-redirectdrives:i:0
-redirectprinters:i:1
-redirectcomports:i:0
-redirectsmartcards:i:1
-displayconnectionbar:i:1
-autoreconnectenabled:i:1
-authentication level:i:0
-prompt for credentials:i:0
-negotiate security layer:i:1
-remoteapplicationmode:i:0
-alternate shell:s:
-shell working directory:s:
-gatewayhostname:s:
-gatewayusagemethod:i:4
-gatewaycredentialssource:i:1
-gatewayprofileusagemethod:i:0
-promptcredentialonce:i:1
-'@
           
-          $rdpFilePath = "$env:TEMP\rdp-connect.rdp"
-          $rdpContent | Out-File -Encoding ASCII $rdpFilePath
-          echo "RDP_FILE_PATH=$rdpFilePath" >> $env:GITHUB_ENV
-        
-      # 5. Verificar Acceso y Mostrar Información
-      - name: Display Access Information
+          if (-not $tsIP) {
+              Write-Error "Tailscale IP not assigned. Exiting."
+              exit 1
+          }
+          echo "TAILSCALE_IP=$tsIP" >> $env:GITHUB_ENV
+      
+      - name: Verify RDP Accessibility
         run: |
-          Write-Host "`n=== INFORMACIÓN DE ACCESO RDP ==="
-          Write-Host "🔗 Dirección IP: $env:TAILSCALE_IP"
-          Write-Host "👤 Usuario: RDP"
-          Write-Host "🔐 Contraseña: $(echo $env:RDP_CREDS)"
-          Write-Host "📁 Archivo RDP: $env:RDP_FILE_PATH"
-          Write-Host "`n[⚠️ PASOS PARA ESCUCHAR AUDIO:]"
-          Write-Host "  1. Descarga el archivo RDP generado."
-          Write-Host "  2. Antes de conectar, ve a 'Opciones' > 'Recursos locales'."
-          Write-Host "  3. En 'Audio', selecciona: 'Reproducir sonido en este equipo'."
-          Write-Host "  4. Conecta y reproduce un video/audio para probar.`n"
-        
-      # 6. Mantener Sesión Activa
-      - name: Keep Session Active
+          Write-Host "Tailscale IP: $env:TAILSCALE_IP"
+          
+          # Test connectivity using Test-NetConnection against the Tailscale IP on port 3389
+          $testResult = Test-NetConnection -ComputerName $env:TAILSCALE_IP -Port 3389
+          if (-not $testResult.TcpTestSucceeded) {
+              Write-Error "TCP connection to RDP port 3389 failed"
+              exit 1
+          }
+          Write-Host "TCP connectivity successful!"
+
+      - name: Display Connection Info
         run: |
+          Write-Host "`n=== RDP ACCESS READY ==="
+          Write-Host "🌐 Address: $env:TAILSCALE_IP"
+          Write-Host "👤 Username: RDP"
+          Write-Host "🔑 Password: $($env:RDP_CREDS -replace 'User: RDP \| Password: ', '')"
+          Write-Host ""
+          Write-Host "🔊 AUDIO: Enabled (will play on your client PC)"
+          Write-Host "🎨 GRAPHICS: Optimized with WARP software rendering"
+          Write-Host "🎨 COLOR: 32-bit depth enabled"
+          Write-Host "🖼️  THEMES: Desktop composition and wallpaper enabled"
+          Write-Host ""
+          Write-Host "💡 RDP CLIENT SETTINGS:"
+          Write-Host "   - Enable 'Play sounds on this computer'"
+          Write-Host "   - Set 'Remote audio recording' to 'Record from this computer'"
+          Write-Host "   - Use 'True Color (32 bit)' display setting"
+          Write-Host "========================`n"
+
+      - name: Maintain Connection
+        run: |
+          # Keep runner active indefinitely (or until manually cancelled)
           while ($true) {
-              Write-Host "[$(Get-Date)] SESIÓN ACTIVA - Presiona Ctrl+C para detener"
+              Write-Host "[$(Get-Date)] 🟢 RDP Active - Audio & Graphics Ready - Use Ctrl+C in workflow to terminate"
               Start-Sleep -Seconds 300
           }

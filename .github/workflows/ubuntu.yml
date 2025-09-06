@@ -46,6 +46,13 @@ jobs:
           echo "RDP_USER=rdpuser" >> $GITHUB_ENV
           echo "RDP_PASS=$PASS" >> $GITHUB_ENV
 
+      - name: Configurar XFCE4 para RDP
+        run: |
+          echo "xfce4-session" | sudo tee /home/rdpuser/.xsession
+          sudo chown rdpuser:rdpuser /home/rdpuser/.xsession
+          sudo sed -i '/^test -x/a startxfce4' /etc/xrdp/startwm.sh
+          sudo systemctl restart xrdp
+
       - name: Instalar Tailscale
         run: |
           curl -fsSL https://tailscale.com/install.sh | sh

@@ -55,10 +55,6 @@ jobs:
           Set-Service -Name AudioEndpointBuilder -StartupType Automatic
           Start-Service -Name AudioEndpointBuilder -ErrorAction SilentlyContinue
           
-          # Enable RPC for audio services
-          Set-Service -Name RpcSs -StartupType Automatic
-          Start-Service -Name RpcSs -ErrorAction SilentlyContinue
-          
           Write-Host "Audio services configured for RDP redirection"
 
       - name: Optimize Graphics and Performance

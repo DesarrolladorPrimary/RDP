@@ -45,19 +45,25 @@ jobs:
           echo "RDP_USER=rdpuser" >> $GITHUB_ENV
           echo "RDP_PASS=$PASS" >> $GITHUB_ENV
 
-      - name: Configurar XFCE4 para RDP (FIX failsafe)
+      - name: Configurar XFCE4 para RDP (FIX FINAL)
         run: |
-          # Crear la sesión por defecto para rdpuser
+          # Crear .xsession para el usuario
           echo "xfce4-session" | sudo tee /home/rdpuser/.xsession
           sudo chown rdpuser:rdpuser /home/rdpuser/.xsession
 
-          # Forzar a XRDP a ejecutar XFCE
-          sudo sed -i '/^test -x/a exec startxfce4' /etc/xrdp/startwm.sh
+          # Reemplazar startwm.sh con XFCE limpio
+          sudo bash -c 'cat > /etc/xrdp/startwm.sh <<EOF
+          #!/bin/sh
+          exec startxfce4
+          EOF'
 
-          # Asegurar dependencias para xfconf/dbus
+          sudo chmod +x /etc/xrdp/startwm.sh
+
+          # Instalar dependencias críticas de sesión
+          sudo apt-get update -y
           sudo apt-get install -y xfce4-session dbus-x11
 
-          # Reiniciar xrdp para aplicar cambios
+          # Reiniciar xrdp
           sudo systemctl restart xrdp
 
       - name: Instalar Tailscale

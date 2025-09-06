@@ -6,7 +6,7 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 3600
     steps:
-      # 1. Configurar RDP y Firewall
+      # 1. Configurar RDP y Firewall con Soporte de Audio
       - name: Configure RDP & Audio Settings
         run: |
           # Habilitar RDP y deshabilitar autenticación de nivel de red
@@ -29,15 +29,15 @@ jobs:
           netsh advfirewall firewall add rule name="RDP" dir=in action=allow protocol=TCP localport=3389
           Restart-Service -Name TermService -Force
         
-      # 2. Crear Usuario RDP
-      - name: Create RDP User
+      # 2. Crear Usuario RDP Seguro
+      - name: Create Secure RDP User
         run: |
           Add-Type -AssemblyName System.Security
           $charSet = @{
-              Upper   = [char[]](65..90)
-              Lower   = [char[]](97..122)
-              Number  = [char[]](48..57)
-              Special = [char[]](33..47 + 58..64 + 91..96 + 123..126)
+              Upper   = [char[]](65..90)      # A-Z
+              Lower   = [char[]](97..122)     # a-z
+              Number  = [char[]](48..57)      # 0-9
+              Special = [char[]](33..47+58..64+91..96+123..126) # Caracteres especiales
           }
           $rawPassword = @(
               $charSet.Upper | Get-Random -Count 4
@@ -66,13 +66,14 @@ jobs:
               $tsIP = & "$env:ProgramFiles\Tailscale\tailscale.exe" ip -4
               Start-Sleep -Seconds 5; $retries++
           }
-          if (-not $tsIP) {exit 1}
+          if (-not $tsIP) { exit 1 }
           echo "TAILSCALE_IP=$tsIP" >> $env:GITHUB_ENV
         
-      # 4. Generar Archivo RDP Preconfigurado
-      - name: Generate RDP File with Audio
+      # 4. Generar Archivo RDP Preconfigurado con Audio
+      - name: Generate RDP File with Audio Settings
         run: |
-          $rdpContent = @"
+          # Usar comillas simples para evitar errores de sintaxis YAML
+          $rdpContent = @'
 screen mode id:i:2
 use multimon:i:0
 desktopwidth:i:1920
@@ -99,27 +100,28 @@ gatewayusagemethod:i:4
 gatewaycredentialssource:i:1
 gatewayprofileusagemethod:i:0
 promptcredentialonce:i:1
-"@
+'@
+          
           $rdpFilePath = "$env:TEMP\rdp-connect.rdp"
           $rdpContent | Out-File -Encoding ASCII $rdpFilePath
           echo "RDP_FILE_PATH=$rdpFilePath" >> $env:GITHUB_ENV
         
-      # 5. Verificar Acceso y Mostrar Credenciales
-      - name: Display Access Info
+      # 5. Verificar Acceso y Mostrar Información
+      - name: Display Access Information
         run: |
-          Write-Host "`n=== ACCESO RDP ==="
-          Write-Host "🔹 Dirección: $env:TAILSCALE_IP"
-          Write-Host "🔹 Usuario: RDP"
-          Write-Host "🔹 Contraseña: $(echo $env:RDP_CREDS)"
-          Write-Host "🔹 Archivo RDP: $env:RDP_FILE_PATH"
-          Write-Host "`n[⚠️ IMPORTANTE] Para escuchar audio:"
-          Write-Host "  1. Abre el archivo RDP generado."
+          Write-Host "`n=== INFORMACIÓN DE ACCESO RDP ==="
+          Write-Host "🔗 Dirección IP: $env:TAILSCALE_IP"
+          Write-Host "👤 Usuario: RDP"
+          Write-Host "🔐 Contraseña: $(echo $env:RDP_CREDS)"
+          Write-Host "📁 Archivo RDP: $env:RDP_FILE_PATH"
+          Write-Host "`n[⚠️ PASOS PARA ESCUCHAR AUDIO:]"
+          Write-Host "  1. Descarga el archivo RDP generado."
           Write-Host "  2. Antes de conectar, ve a 'Opciones' > 'Recursos locales'."
           Write-Host "  3. En 'Audio', selecciona: 'Reproducir sonido en este equipo'."
-          Write-Host "  4. Conecta y prueba reproduciendo un video/audio.`n"
+          Write-Host "  4. Conecta y reproduce un video/audio para probar.`n"
         
       # 6. Mantener Sesión Activa
-      - name: Keep Session Alive
+      - name: Keep Session Active
         run: |
           while ($true) {
               Write-Host "[$(Get-Date)] SESIÓN ACTIVA - Presiona Ctrl+C para detener"

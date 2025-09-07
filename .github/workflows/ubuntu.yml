@@ -1,89 +1,50 @@
-name: Ubuntu-RDP-Docker
+name: Ubuntu-Desktop-noVNC
 
 on:
   workflow_dispatch:
 
 jobs:
-  rdp-docker:
+  desktop:
     runs-on: ubuntu-latest
     timeout-minutes: 3600
 
     steps:
-      - name: Actualizar paquetes
+      - name: Instalar dependencias
         run: |
           sudo apt-get update -y
+          sudo apt-get install -y curl docker.io
 
-      - name: Instalar XFCE4 + XRDP
-        run: |
-          sudo apt-get install -y xfce4 xfce4-goodies xorg dbus-x11 xrdp
-          sudo systemctl enable xrdp
-          sudo systemctl start xrdp
-
-      - name: Instalar Docker
-        run: |
-          sudo apt-get remove -y docker docker-engine docker.io containerd runc || true
-          sudo apt-get install -y \
-            ca-certificates \
-            curl \
-            gnupg \
-            lsb-release
-          sudo mkdir -m 0755 -p /etc/apt/keyrings
-          curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
-          echo \
-            "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu \
-            $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
-          sudo apt-get update -y
-          sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
-          sudo usermod -aG docker $USER
-
-      - name: Crear usuario RDP
+      - name: Crear usuario de escritorio
         run: |
           PASS=$(openssl rand -base64 12)
-          sudo useradd -m -s /bin/bash rdpuser
-          echo "rdpuser:$PASS" | sudo chpasswd
-          sudo adduser rdpuser sudo
-          echo "RDP_USER=rdpuser" >> $GITHUB_ENV
-          echo "RDP_PASS=$PASS" >> $GITHUB_ENV
+          echo "DESKTOP_USER=user" >> $GITHUB_ENV
+          echo "DESKTOP_PASS=$PASS" >> $GITHUB_ENV
 
-      - name: Configurar XFCE4 para RDP (FIX FINAL)
+      - name: Lanzar contenedor LXDE + noVNC
         run: |
-          # Crear .xsession para el usuario
-          echo "xfce4-session" | sudo tee /home/rdpuser/.xsession
-          sudo chown rdpuser:rdpuser /home/rdpuser/.xsession
-
-          # Reemplazar startwm.sh con XFCE limpio
-          sudo bash -c 'cat > /etc/xrdp/startwm.sh <<EOF
-          #!/bin/sh
-          exec startxfce4
-          EOF'
-
-          sudo chmod +x /etc/xrdp/startwm.sh
-
-          # Instalar dependencias críticas de sesión
-          sudo apt-get update -y
-          sudo apt-get install -y xfce4-session dbus-x11
-
-          # Reiniciar xrdp
-          sudo systemctl restart xrdp
+          docker run -d \
+            -p 8080:80 \
+            -e USER=$DESKTOP_USER \
+            -e PASSWORD=$DESKTOP_PASS \
+            dorowu/ubuntu-desktop-lxde-vnc
 
       - name: Instalar Tailscale
         run: |
           curl -fsSL https://tailscale.com/install.sh | sh
-          sudo tailscale up --authkey=${{ secrets.TAILSCALE_AUTH_KEY }} --hostname=gh-ubunturdp-$GITHUB_RUN_ID
+          sudo tailscale up --authkey=${{ secrets.TAILSCALE_AUTH_KEY }} --hostname=gh-ubuntunovnc-$GITHUB_RUN_ID
 
-      - name: Mostrar información de conexión
+      - name: Mostrar datos de acceso
         run: |
           echo "============================"
-          echo " 🖥️  Conectar por RDP"
-          echo " IP (Tailscale): $(tailscale ip -4)"
-          echo " Usuario: $RDP_USER"
-          echo " Contraseña: $RDP_PASS"
-          echo " 🐳 Docker: instalado y funcionando"
+          echo " 🌐 Desktop noVNC disponible"
+          echo " URL: http://$(tailscale ip -4):8080/vnc.html"
+          echo " Usuario: $DESKTOP_USER"
+          echo " Contraseña: $DESKTOP_PASS"
           echo "============================"
 
       - name: Mantener sesión
         run: |
           while true; do
-            echo "[$(date)] ✅ RDP con Docker sigue activo"
+            echo "[$(date)] ✅ Desktop sigue activo"
             sleep 300
           done

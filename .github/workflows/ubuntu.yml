@@ -24,7 +24,7 @@ jobs:
       - name: Lanzar contenedor LXDE + noVNC
         run: |
           docker run -d \
-            -p 8080:80 \
+            -p 8080:6080 \
             -e USER=$DESKTOP_USER \
             -e PASSWORD=$DESKTOP_PASS \
             dorowu/ubuntu-desktop-lxde-vnc

@@ -9,10 +9,11 @@ jobs:
     timeout-minutes: 3600
 
     steps:
-      - name: Instalar dependencias
+      - name: Activar Docker ya incluido en el runner
         run: |
-          sudo apt-get update -y
-          sudo apt-get install -y curl docker.io
+          sudo systemctl start docker
+          sudo usermod -aG docker $USER
+          docker --version
 
       - name: Crear usuario de escritorio
         run: |
@@ -31,20 +32,24 @@ jobs:
       - name: Instalar Tailscale
         run: |
           curl -fsSL https://tailscale.com/install.sh | sh
-          sudo tailscale up --authkey=${{ secrets.TAILSCALE_AUTH_KEY }} --hostname=gh-ubuntunovnc-$GITHUB_RUN_ID
+          sudo tailscale up --authkey=${{ secrets.TAILSCALE_AUTH_KEY }} \
+                            --hostname=gh-ubuntunovnc-$GITHUB_RUN_ID
 
       - name: Mostrar datos de acceso
         run: |
+          TSIP=$(tailscale ip -4)
           echo "============================"
-          echo " 🌐 Desktop noVNC disponible"
-          echo " URL: http://$(tailscale ip -4):8080/vnc.html"
+          echo " 🌐 Escritorio noVNC disponible"
+          echo " URL (IP):     http://$TSIP:8080/vnc.html"
+          echo " URL (DNS ts): http://gh-ubuntunovnc-$GITHUB_RUN_ID.tailscale.net:8080/vnc.html"
+          echo ""
           echo " Usuario: $DESKTOP_USER"
           echo " Contraseña: $DESKTOP_PASS"
           echo "============================"
 
-      - name: Mantener sesión
+      - name: Mantener contenedor activo
         run: |
           while true; do
-            echo "[$(date)] ✅ Desktop sigue activo"
+            echo "[$(date)] ✅ Desktop con Docker sigue activo"
             sleep 300
           done

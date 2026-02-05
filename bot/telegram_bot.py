@@ -58,33 +58,46 @@ def get_updates(offset=None):
 
 
 def main():
-    send("Bot activo. Comandos: /startcodespace /stopcodespace /statuscodespace /listcodespace /restartcodespace /deletecodespace")
+    send("Bot activo. Comandos: /startcodespace [nombre] /newcodespace /stopcodespace /statuscodespace /listcodespace /restartcodespace /deletecodespace")
     offset = None
     while True:
         updates = get_updates(offset)
         for u in updates.get("result", []):
             offset = u["update_id"] + 1
             msg = u.get("message", {}).get("text", "")
-            if msg == "/startcodespace":
+            if msg.startswith("/startcodespace"):
+                parts = msg.split()
+                target_name = parts[1] if len(parts) > 1 else None
                 try:
                     existing = list_codespaces()
                 except Exception as e:
-                    code, text = dispatch("start")
-                    send(f"Dispatch start (fallback): {code}")
+                    send("No pude listar codespaces.")
                     continue
 
-                if existing:
-                    cs = existing[0]
-                    name = cs.get("name")
-                    state = cs.get("state")
-                    if state == "stopped":
-                        r = start_codespace(name)
-                        send(f"Codespace {name} estaba detenido. Start: {r.status_code}")
-                    else:
-                        send(f"Codespace ya existe: {name} (estado: {state})")
+                if not existing:
+                    send("No hay codespaces. Usa /newcodespace para crear uno.")
+                    continue
+
+                if target_name:
+                    match = [c for c in existing if c.get("name") == target_name]
+                    if not match:
+                        send("No encontré ese codespace. Usa /listcodespace.")
+                        continue
+                    cs = match[0]
                 else:
-                    code, text = dispatch("start")
-                    send(f"Dispatch start: {code}")
+                    cs = existing[0]
+
+                name = cs.get("name")
+                state = cs.get("state")
+                if state == "stopped":
+                    r = start_codespace(name)
+                    send(f"Start solicitado para {name}: {r.status_code}")
+                else:
+                    send(f"Codespace {name} ya está en estado: {state}")
+
+            elif msg == "/newcodespace":
+                code, text = dispatch("start")
+                send(f"Crear nuevo codespace: {code}")
 
             elif msg == "/stopcodespace":
                 try:

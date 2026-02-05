@@ -79,16 +79,19 @@ def parse_ts(s):
 
 def main():
     send(
-        "🤖 Bot activo.\n"
-        "Comandos:\n"
-        "• /startcodespace [nombre] – Inicia un codespace existente\n"
-        "• /newcodespace – Crea un codespace nuevo\n"
-        "• /stopcodespace – Detiene codespaces del repo\n"
-        "• /statuscodespace – Estado de codespaces\n"
-        "• /listcodespace – Lista codespaces\n"
-        "• /restartcodespace – Reinicia codespaces\n"
-        "• /deletecodespace – Elimina codespaces\n"
-        "• /help – Ayuda\n"
+        "✨ *Codespace Control* ✨\n"
+        "Estoy activo y listo.\n\n"
+        "📌 *Comandos principales*\n"
+        "• /startcodespace [nombre] → Inicia un codespace\n"
+        "• /newcodespace → Crea un codespace nuevo\n"
+        "• /stopcodespace → Detiene codespaces\n\n"
+        "📊 *Estado*\n"
+        "• /statuscodespace → Estado detallado\n"
+        "• /listcodespace → Lista rápida\n\n"
+        "🛠️ *Mantenimiento*\n"
+        "• /restartcodespace → Reinicia (con confirmación)\n"
+        "• /deletecodespace → Elimina (con confirmación)\n\n"
+        "ℹ️ /help\n"
     )
 
     def wait_for_running(nm, timeout=180, interval=15):

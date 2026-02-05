@@ -15,12 +15,33 @@ def send(msg):
     )
 
 
+def gh_headers():
+    return {"Authorization": f"token {GH_PAT}", "Accept": "application/vnd.github+json"}
+
+
 def dispatch(action="start"):
     url = f"https://api.github.com/repos/{REPO}/actions/workflows/{WORKFLOW}/dispatches"
-    headers = {"Authorization": f"token {GH_PAT}", "Accept": "application/vnd.github+json"}
     data = {"ref": BRANCH, "inputs": {"action": action}}
-    r = requests.post(url, headers=headers, json=data)
+    r = requests.post(url, headers=gh_headers(), json=data)
     return r.status_code, r.text
+
+
+def list_codespaces():
+    url = "https://api.github.com/user/codespaces"
+    r = requests.get(url, headers=gh_headers(), params={"per_page": 100})
+    r.raise_for_status()
+    items = r.json().get("codespaces", [])
+    return [c for c in items if c.get("repository", {}).get("full_name") == REPO]
+
+
+def start_codespace(name):
+    url = f"https://api.github.com/user/codespaces/{name}/start"
+    return requests.post(url, headers=gh_headers())
+
+
+def stop_codespace(name):
+    url = f"https://api.github.com/user/codespaces/{name}/stop"
+    return requests.post(url, headers=gh_headers())
 
 
 def get_updates(offset=None):
@@ -40,11 +61,39 @@ def main():
             offset = u["update_id"] + 1
             msg = u.get("message", {}).get("text", "")
             if msg == "/startcodespace":
-                code, text = dispatch("start")
-                send(f"Dispatch start: {code}")
+                try:
+                    existing = list_codespaces()
+                except Exception as e:
+                    code, text = dispatch("start")
+                    send(f"Dispatch start (fallback): {code}")
+                    continue
+
+                if existing:
+                    cs = existing[0]
+                    name = cs.get("name")
+                    state = cs.get("state")
+                    if state == "stopped":
+                        r = start_codespace(name)
+                        send(f"Codespace {name} estaba detenido. Start: {r.status_code}")
+                    else:
+                        send(f"Codespace ya existe: {name} (estado: {state})")
+                else:
+                    code, text = dispatch("start")
+                    send(f"Dispatch start: {code}")
+
             elif msg == "/stopcodespace":
-                code, text = dispatch("stop")
-                send(f"Dispatch stop: {code}")
+                try:
+                    existing = list_codespaces()
+                except Exception as e:
+                    send("No pude listar codespaces.")
+                    continue
+                if not existing:
+                    send("No hay codespaces para este repo.")
+                else:
+                    for cs in existing:
+                        name = cs.get("name")
+                        r = stop_codespace(name)
+                    send("Stop solicitado para codespaces del repo.")
         time.sleep(1)
 
 

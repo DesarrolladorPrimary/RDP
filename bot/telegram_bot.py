@@ -94,6 +94,23 @@ def main():
                         name = cs.get("name")
                         r = stop_codespace(name)
                     send("Stop solicitado para codespaces del repo.")
+
+            elif msg == "/statuscodespace":
+                try:
+                    existing = list_codespaces()
+                except Exception as e:
+                    send("No pude listar codespaces.")
+                    continue
+                if not existing:
+                    send("No hay codespaces para este repo.")
+                else:
+                    lines = []
+                    for cs in existing:
+                        name = cs.get("name")
+                        state = cs.get("state")
+                        machine = cs.get("machine", {}).get("display_name")
+                        lines.append(f"- {name}: {state} ({machine})")
+                    send("Codespaces:\n" + "\n".join(lines))
         time.sleep(1)
 
 

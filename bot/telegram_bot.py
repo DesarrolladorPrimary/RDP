@@ -106,9 +106,28 @@ def main():
 
                 name = cs.get("name")
                 state = cs.get("state")
+                def wait_for_running(nm, timeout=180, interval=15):
+                    waited = 0
+                    while waited < timeout:
+                        try:
+                            csx = get_codespace_by_name(nm)
+                            st = csx.get("state")
+                        except Exception:
+                            st = None
+                        if st in ("Available", "running"):
+                            return True, st
+                        time.sleep(interval)
+                        waited += interval
+                    return False, st
+
                 if state in ("stopped", "shutdown", "Shutdown"):
                     r = start_codespace(name)
-                    send(f"Start solicitado para {name}: {r.status_code}")
+                    send(f"Start solicitado para {name}: {r.status_code}. Esperando... ")
+                    ok, st = wait_for_running(name)
+                    if ok:
+                        send(f"✅ {name} ya está listo ({st}).")
+                    else:
+                        send(f"⏳ {name} aún no está listo (estado: {st}).")
                 elif state in ("ShuttingDown", "shutting_down"):
                     send(f"{name} está apagándose. Esperando 30s...")
                     time.sleep(30)
@@ -119,7 +138,12 @@ def main():
                         state2 = None
                     if state2 in ("stopped", "shutdown", "Shutdown"):
                         r = start_codespace(name)
-                        send(f"Start solicitado para {name}: {r.status_code}")
+                        send(f"Start solicitado para {name}: {r.status_code}. Esperando...")
+                        ok, st = wait_for_running(name)
+                        if ok:
+                            send(f"✅ {name} ya está listo ({st}).")
+                        else:
+                            send(f"⏳ {name} aún no está listo (estado: {st}).")
                     else:
                         send(f"Aún en estado: {state2}")
                 else:

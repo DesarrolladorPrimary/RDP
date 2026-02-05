@@ -58,7 +58,17 @@ def get_updates(offset=None):
 
 
 def main():
-    send("Bot activo. Comandos: /startcodespace [nombre] /newcodespace /stopcodespace /statuscodespace /listcodespace /restartcodespace /deletecodespace")
+    send(
+        "🤖 Bot activo.\n"
+        "Comandos:\n"
+        "• /startcodespace [nombre] – Inicia un codespace existente\n"
+        "• /newcodespace – Crea un codespace nuevo\n"
+        "• /stopcodespace – Detiene codespaces del repo\n"
+        "• /statuscodespace – Estado de codespaces\n"
+        "• /listcodespace – Lista codespaces\n"
+        "• /restartcodespace – Reinicia codespaces\n"
+        "• /deletecodespace – Elimina codespaces\n"
+    )
     offset = None
     while True:
         updates = get_updates(offset)

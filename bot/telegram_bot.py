@@ -44,6 +44,11 @@ def stop_codespace(name):
     return requests.post(url, headers=gh_headers())
 
 
+def delete_codespace(name):
+    url = f"https://api.github.com/user/codespaces/{name}"
+    return requests.delete(url, headers=gh_headers())
+
+
 def get_updates(offset=None):
     url = f"https://api.telegram.org/bot{TOKEN}/getUpdates"
     params = {"timeout": 30}
@@ -53,7 +58,7 @@ def get_updates(offset=None):
 
 
 def main():
-    send("Bot activo. Usa /startcodespace o /stopcodespace")
+    send("Bot activo. Comandos: /startcodespace /stopcodespace /statuscodespace /listcodespace /restartcodespace /deletecodespace")
     offset = None
     while True:
         updates = get_updates(offset)
@@ -95,7 +100,7 @@ def main():
                         r = stop_codespace(name)
                     send("Stop solicitado para codespaces del repo.")
 
-            elif msg == "/statuscodespace":
+            elif msg == "/statuscodespace" or msg == "/listcodespace":
                 try:
                     existing = list_codespaces()
                 except Exception as e:
@@ -111,6 +116,38 @@ def main():
                         machine = cs.get("machine", {}).get("display_name")
                         lines.append(f"- {name}: {state} ({machine})")
                     send("Codespaces:\n" + "\n".join(lines))
+
+            elif msg == "/restartcodespace":
+                try:
+                    existing = list_codespaces()
+                except Exception as e:
+                    send("No pude listar codespaces.")
+                    continue
+                if not existing:
+                    send("No hay codespaces para este repo.")
+                else:
+                    for cs in existing:
+                        name = cs.get("name")
+                        stop_codespace(name)
+                    time.sleep(5)
+                    for cs in existing:
+                        name = cs.get("name")
+                        start_codespace(name)
+                    send("Restart solicitado para codespaces del repo.")
+
+            elif msg == "/deletecodespace":
+                try:
+                    existing = list_codespaces()
+                except Exception as e:
+                    send("No pude listar codespaces.")
+                    continue
+                if not existing:
+                    send("No hay codespaces para este repo.")
+                else:
+                    for cs in existing:
+                        name = cs.get("name")
+                        delete_codespace(name)
+                    send("Delete solicitado para codespaces del repo.")
         time.sleep(1)
 
 

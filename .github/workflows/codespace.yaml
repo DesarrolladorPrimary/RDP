@@ -1,0 +1,38 @@
+name: codespace-control
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: "start or stop"
+        required: true
+        default: "start"
+      machine:
+        description: "Codespace machine type"
+        required: false
+        default: "basicLinux32"
+      branch:
+        description: "Branch"
+        required: false
+        default: "main"
+
+jobs:
+  codespace:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Start Codespace
+        if: ${{ inputs.action == 'start' }}
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT }}
+        run: |
+          gh codespace create \
+            --repo DesarrolladorPrimary/RDP \
+            --branch "${{ inputs.branch }}" \
+            --machine "${{ inputs.machine }}"
+
+      - name: Stop Codespace (manual)
+        if: ${{ inputs.action == 'stop' }}
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT }}
+        run: |
+          echo "Stop not implemented. Use: gh codespace stop -a"

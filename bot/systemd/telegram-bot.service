@@ -1,0 +1,14 @@
+[Unit]
+Description=Telegram Codespace Bot
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/home/ubuntu/RDP
+EnvironmentFile=/home/ubuntu/RDP/.env
+ExecStart=/home/ubuntu/RDP/.venv/bin/python /home/ubuntu/RDP/bot/telegram_bot.py
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

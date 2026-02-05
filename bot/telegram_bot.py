@@ -34,6 +34,13 @@ def list_codespaces():
     return [c for c in items if c.get("repository", {}).get("full_name") == REPO]
 
 
+def get_codespace_by_name(name):
+    url = f"https://api.github.com/user/codespaces/{name}"
+    r = requests.get(url, headers=gh_headers())
+    r.raise_for_status()
+    return r.json()
+
+
 def start_codespace(name):
     url = f"https://api.github.com/user/codespaces/{name}/start"
     return requests.post(url, headers=gh_headers())
@@ -102,6 +109,19 @@ def main():
                 if state in ("stopped", "shutdown", "Shutdown"):
                     r = start_codespace(name)
                     send(f"Start solicitado para {name}: {r.status_code}")
+                elif state in ("ShuttingDown", "shutting_down"):
+                    send(f"{name} está apagándose. Esperando 30s...")
+                    time.sleep(30)
+                    try:
+                        cs2 = get_codespace_by_name(name)
+                        state2 = cs2.get("state")
+                    except Exception:
+                        state2 = None
+                    if state2 in ("stopped", "shutdown", "Shutdown"):
+                        r = start_codespace(name)
+                        send(f"Start solicitado para {name}: {r.status_code}")
+                    else:
+                        send(f"Aún en estado: {state2}")
                 else:
                     send(f"Codespace {name} ya está en estado: {state}")
 
@@ -137,7 +157,8 @@ def main():
                         name = cs.get("name")
                         state = cs.get("state")
                         machine = cs.get("machine", {}).get("display_name")
-                        lines.append(f"- {name}: {state} ({machine})")
+                        last = cs.get("last_used_at")
+                        lines.append(f"- {name}: {state} ({machine}) last_used={last}")
                     send("Codespaces:\n" + "\n".join(lines))
 
             elif msg == "/restartcodespace":

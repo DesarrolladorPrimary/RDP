@@ -99,7 +99,7 @@ def main():
 
                 name = cs.get("name")
                 state = cs.get("state")
-                if state == "stopped":
+                if state in ("stopped", "shutdown", "Shutdown"):
                     r = start_codespace(name)
                     send(f"Start solicitado para {name}: {r.status_code}")
                 else:

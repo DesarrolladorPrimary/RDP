@@ -162,10 +162,31 @@ def main():
                 if not existing:
                     send("No hay codespaces para este repo.")
                 else:
+                    def wait_for_stopped(nm, timeout=180, interval=15):
+                        waited = 0
+                        while waited < timeout:
+                            try:
+                                csx = get_codespace_by_name(nm)
+                                st = csx.get("state")
+                            except Exception:
+                                st = None
+                            if st in ("Shutdown", "shutdown", "stopped"):
+                                return True, st
+                            time.sleep(interval)
+                            waited += interval
+                        return False, st
+
                     for cs in existing:
                         name = cs.get("name")
-                        r = stop_codespace(name)
-                    send("Stop solicitado para codespaces del repo.")
+                        stop_codespace(name)
+                    send("Stop solicitado. Esperando apagado...")
+                    for cs in existing:
+                        name = cs.get("name")
+                        ok, st = wait_for_stopped(name)
+                        if ok:
+                            send(f"✅ {name} apagado ({st}).")
+                        else:
+                            send(f"⏳ {name} aún no se apaga (estado: {st}).")
 
             elif msg == "/statuscodespace" or msg == "/listcodespace":
                 try:

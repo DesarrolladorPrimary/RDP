@@ -1,0 +1,4 @@
+{
+  "name": "RDP Codespace",
+  "postStartCommand": "openclaw gateway start"
+}

@@ -1,4 +1,5 @@
 {
   "name": "RDP Codespace",
+  "postCreateCommand": "curl -fsSL https://get.openclaw.ai | bash",
   "postStartCommand": "openclaw gateway start"
 }

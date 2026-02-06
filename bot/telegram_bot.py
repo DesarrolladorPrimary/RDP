@@ -94,7 +94,7 @@ def main():
         "ℹ️ /help\n"
     )
 
-    def wait_for_running(nm, timeout=180, interval=15):
+    def wait_for_running(nm, timeout=240, interval=15):
         waited = 0
         while waited < timeout:
             try:
@@ -108,7 +108,7 @@ def main():
             waited += interval
         return False, st
 
-    def wait_for_stopped(nm, timeout=180, interval=15):
+    def wait_for_stopped(nm, timeout=240, interval=15):
         waited = 0
         while waited < timeout:
             try:
@@ -126,6 +126,31 @@ def main():
         code = str(int(time.time()))[-4:]
         PENDING[chat_id] = (action, payload, time.time(), code)
         send(f"Confirma con: /confirm {code}", chat_id)
+
+    def notify_new_codespace(chat_id):
+        def _worker():
+            send("🧭 Creación en progreso...", chat_id)
+            ready = False
+            deadline = time.time() + 600
+            last_state = None
+            while time.time() < deadline:
+                try:
+                    existing = list_codespaces()
+                    if existing:
+                        cs = existing[0]
+                        name = cs.get("name")
+                        st = cs.get("state")
+                        last_state = st
+                        if st in ("Available", "running"):
+                            send(f"✅ Codespace listo: {name} ({st}). OpenClaw gateway debería arrancar automáticamente.", chat_id)
+                            ready = True
+                            break
+                except Exception:
+                    pass
+                time.sleep(20)
+            if not ready:
+                send(f"⏳ Aún no está listo (estado: {last_state}). Usa /statuscodespace.", chat_id)
+        threading.Thread(target=_worker, daemon=True).start()
 
     offset = None
     while True:
@@ -225,7 +250,8 @@ def main():
 
             elif msg == "/newcodespace":
                 code, text = dispatch("start")
-                send(f"Crear nuevo codespace solicitado: {code}. Revisa /statuscodespace para ver cuando esté listo.", chat_id)
+                send(f"Crear nuevo codespace solicitado: {code}. Te aviso cuando esté listo.", chat_id)
+                notify_new_codespace(chat_id)
 
             elif msg == "/stopcodespace":
                 try:

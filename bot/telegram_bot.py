@@ -199,7 +199,7 @@ def main():
                     send(f"Start solicitado para {name}: {r.status_code}. Esperando... ", chat_id)
                     ok, st = wait_for_running(name)
                     if ok:
-                        send(f"✅ {name} ya está listo ({st}).", chat_id)
+                        send(f"✅ {name} ya está listo ({st}). OpenClaw gateway debería arrancar automáticamente.", chat_id)
                     else:
                         send(f"⏳ {name} aún no está listo (estado: {st}).", chat_id)
                 elif state in ("ShuttingDown", "shutting_down"):
@@ -215,7 +215,7 @@ def main():
                         send(f"Start solicitado para {name}: {r.status_code}. Esperando...", chat_id)
                         ok, st = wait_for_running(name)
                         if ok:
-                            send(f"✅ {name} ya está listo ({st}).", chat_id)
+                            send(f"✅ {name} ya está listo ({st}). OpenClaw gateway debería arrancar automáticamente.", chat_id)
                         else:
                             send(f"⏳ {name} aún no está listo (estado: {st}).", chat_id)
                     else:
@@ -225,7 +225,7 @@ def main():
 
             elif msg == "/newcodespace":
                 code, text = dispatch("start")
-                send(f"Crear nuevo codespace: {code}", chat_id)
+                send(f"Crear nuevo codespace solicitado: {code}. Revisa /statuscodespace para ver cuando esté listo.", chat_id)
 
             elif msg == "/stopcodespace":
                 try:

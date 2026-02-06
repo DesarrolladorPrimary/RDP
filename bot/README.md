@@ -9,6 +9,7 @@ This bot triggers a GitHub Actions workflow to start a Codespace.
 - ALLOWED_CHAT_ID (opcional, limita quién puede usar el bot)
 - AUTO_STOP_MINUTES (opcional, auto-apagar por inactividad)
 - CHECK_INTERVAL (opcional, segundos entre chequeos)
+- GATEWAY_URL (opcional, URL pública del gateway para confirmar que arrancó)
 
 ## Run
 ```bash

@@ -9,6 +9,7 @@ BRANCH = "main"
 ALLOWED_CHAT_ID = os.environ.get("ALLOWED_CHAT_ID", CHAT_ID)
 AUTO_STOP_MINUTES = int(os.environ.get("AUTO_STOP_MINUTES", "0"))
 CHECK_INTERVAL = int(os.environ.get("CHECK_INTERVAL", "300"))
+GATEWAY_URL = os.environ.get("GATEWAY_URL")
 PENDING = {}
 
 
@@ -77,6 +78,22 @@ def parse_ts(s):
         return None
 
 
+def wait_for_gateway(url, timeout=120, interval=10):
+    if not url:
+        return None
+    waited = 0
+    while waited < timeout:
+        try:
+            r = requests.get(url, timeout=5)
+            if r.status_code < 500:
+                return True
+        except Exception:
+            pass
+        time.sleep(interval)
+        waited += interval
+    return False
+
+
 def main():
     send(
         "✨ *Codespace Control* ✨\n"
@@ -143,6 +160,11 @@ def main():
                         last_state = st
                         if st in ("Available", "running"):
                             send(f"✅ Codespace listo: {name} ({st}). OpenClaw gateway debería arrancar automáticamente.", chat_id)
+                            gw = wait_for_gateway(GATEWAY_URL)
+                            if gw is True:
+                                send("✅ Gateway listo.", chat_id)
+                            elif gw is False:
+                                send("⚠️ Gateway no respondió aún.", chat_id)
                             ready = True
                             break
                 except Exception:
@@ -225,6 +247,11 @@ def main():
                     ok, st = wait_for_running(name)
                     if ok:
                         send(f"✅ {name} ya está listo ({st}). OpenClaw gateway debería arrancar automáticamente.", chat_id)
+                        gw = wait_for_gateway(GATEWAY_URL)
+                        if gw is True:
+                            send("✅ Gateway listo.", chat_id)
+                        elif gw is False:
+                            send("⚠️ Gateway no respondió aún.", chat_id)
                     else:
                         send(f"⏳ {name} aún no está listo (estado: {st}).", chat_id)
                 elif state in ("ShuttingDown", "shutting_down"):
@@ -241,6 +268,11 @@ def main():
                         ok, st = wait_for_running(name)
                         if ok:
                             send(f"✅ {name} ya está listo ({st}). OpenClaw gateway debería arrancar automáticamente.", chat_id)
+                            gw = wait_for_gateway(GATEWAY_URL)
+                            if gw is True:
+                                send("✅ Gateway listo.", chat_id)
+                            elif gw is False:
+                                send("⚠️ Gateway no respondió aún.", chat_id)
                         else:
                             send(f"⏳ {name} aún no está listo (estado: {st}).", chat_id)
                     else:

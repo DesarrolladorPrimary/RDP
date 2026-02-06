@@ -104,7 +104,8 @@ def main():
         "• /stopcodespace → Detiene codespaces\n\n"
         "📊 *Estado*\n"
         "• /statuscodespace → Estado detallado\n"
-        "• /listcodespace → Lista rápida\n\n"
+        "• /listcodespace → Lista rápida\n"
+        "• /pingcodespace → Verifica estado (API)\n\n"
         "🛠️ *Mantenimiento*\n"
         "• /restartcodespace → Reinicia (con confirmación)\n"
         "• /deletecodespace → Elimina (con confirmación)\n\n"
@@ -322,6 +323,20 @@ def main():
                         last = cs.get("last_used_at")
                         lines.append(f"- {name}: {state} ({machine}) last_used={last}")
                     send("Codespaces:\n" + "\n".join(lines), chat_id)
+
+            elif msg == "/pingcodespace":
+                try:
+                    existing = list_codespaces()
+                except Exception:
+                    send("No pude listar codespaces.", chat_id)
+                    continue
+                if not existing:
+                    send("No hay codespaces para este repo.", chat_id)
+                else:
+                    cs = existing[0]
+                    name = cs.get("name")
+                    state = cs.get("state")
+                    send(f"🔎 {name} estado API: {state}", chat_id)
 
             elif msg == "/restartcodespace":
                 try:
